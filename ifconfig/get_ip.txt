@@ -1,0 +1,121 @@
+
+/*
+#include <sys/types.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>*/
+
+void quectel_show_all (void) 
+{
+    struct ifaddrs * ifAddrStruct=NULL;
+    void * tmpAddrPtr=NULL;
+	log_dbg("quectel_show_all>>");
+    getifaddrs(&ifAddrStruct);
+	log_dbg("quectel_show_all>> 1");
+    while (ifAddrStruct!=NULL) {
+        if (ifAddrStruct->ifa_addr->sa_family==AF_INET) { // check it is IP4
+            // is a valid IP4 Address
+            tmpAddrPtr=&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
+            char addressBuffer[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+            log_dbg("%s IP Address %s/n", ifAddrStruct->ifa_name, addressBuffer); 
+        } else if (ifAddrStruct->ifa_addr->sa_family==AF_INET6) { // check it is IP6
+            // is a valid IP6 Address
+            tmpAddrPtr=&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
+            char addressBuffer[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+            log_dbg("%s IP Address %s/n", ifAddrStruct->ifa_name, addressBuffer); 
+        } 
+        ifAddrStruct=ifAddrStruct->ifa_next;
+    }
+	
+	log_dbg("quectel_show_all>> 2");
+    return;
+}
+
+char* quectel_get_localip(const char *devname)  
+{  
+  
+    int sock_get_ip;  
+    char ipaddr[50];  
+  
+    struct   sockaddr_in *sin;  
+    struct   ifreq ifr_ip;     
+  
+  log_dbg("quectel_get_localip>>");
+    if ((sock_get_ip=socket(AF_INET, SOCK_STREAM, 0)) == -1)  
+    {  
+         log_warn("socket create failse...GetLocalIp!/n");  
+         return "";  
+    }  
+     
+    memset(&ifr_ip, 0, sizeof(ifr_ip));     
+    strncpy(ifr_ip.ifr_name, devname, sizeof(ifr_ip.ifr_name) - 1);     
+   
+    if( ioctl( sock_get_ip, SIOCGIFADDR, &ifr_ip) < 0 )     
+    {     
+		log_warn("socket ioctl failse...GetLocalIp!/n");  
+		close( sock_get_ip ); 
+		return "";     
+    }       
+    sin = (struct sockaddr_in *)&ifr_ip.ifr_addr;     
+    strcpy(ipaddr,inet_ntoa(sin->sin_addr));         
+      
+    log_dbg("local ip:%s /n",ipaddr);      
+    close( sock_get_ip );  
+      
+    return ( ipaddr );  
+}
+
+
+int quectel_set_localip(const char *devname, const char *ipaddr )  
+{  
+  
+    int sock_set_ip;  
+      
+    struct sockaddr_in sin_set_ip;  
+    struct ifreq ifr_set_ip;  
+	log_dbg( "quectel_set_localip.");  
+    bzero( &ifr_set_ip,sizeof(ifr_set_ip));  
+   
+    if( ipaddr == NULL )  
+    {
+        log_err( "reference err.");  
+        return -1;  
+    }
+
+
+    if ((sock_set_ip=socket(AF_INET, SOCK_STREAM, 0)) == -1)  
+    {  
+         log_warn("socket create failse...SetLocalIp..!");  
+         return -1;  
+    } 
+    memset( &sin_set_ip, 0, sizeof(sin_set_ip));  
+    strncpy(ifr_set_ip.ifr_name, devname, sizeof(ifr_set_ip.ifr_name)-1);     
+      
+    sin_set_ip.sin_family = AF_INET;  
+    sin_set_ip.sin_addr.s_addr = inet_addr(ipaddr);  
+    memcpy( &ifr_set_ip.ifr_addr, &sin_set_ip, sizeof(sin_set_ip));  
+  
+    if( ioctl( sock_set_ip, SIOCSIFADDR, &ifr_set_ip) < 0 )  
+    {  
+        log_err( "Not setup interface/n");  
+        return -1;  
+    }  
+  
+    ifr_set_ip.ifr_flags |= IFF_UP |IFF_RUNNING;  
+  
+    //get the status of the device  
+    if( ioctl( sock_set_ip, SIOCSIFFLAGS, &ifr_set_ip ) < 0 )  
+    {  
+         log_err("SIOCSIFFLAGS");  
+         return -1;  
+    }  
+  
+    close( sock_set_ip );  
+    return 0;  
+}
